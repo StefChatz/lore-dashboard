@@ -23,7 +23,8 @@ export default function DashboardLayout({
     if (href === '/') {
       return pathname === '/';
     }
-    return pathname === href;
+    
+return pathname === href;
   };
 
   return (
@@ -39,7 +40,8 @@ export default function DashboardLayout({
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
-                return (
+                
+return (
                   <Link key={item.name} href={item.href}>
                     <Button
                       variant={active ? 'default' : 'outline'}
