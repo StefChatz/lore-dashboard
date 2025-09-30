@@ -1,8 +1,8 @@
 {
-    "name": "nextjs-15-starter-shadcn",
+    "name": "lore-dashboard",
     "version": "1.0.0",
     "private": false,
-    "website": "https://nextjs-15-starter-shadcn.vercel.app/",
+    "website": "https://lore-dashboard.vercel.app/",
     "license": "MIT",
     "scripts": {
         "dev": "next dev --turbopack",
@@ -46,6 +46,7 @@
         "@radix-ui/react-toggle-group": "^1.1.11",
         "@radix-ui/react-tooltip": "^1.2.8",
         "@vercel/analytics": "^1.5.0",
+        "bybit-api": "^4.3.1",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
