@@ -131,6 +131,7 @@ const BybitDashboard = () => {
   const [data, setData] = useState<BybitData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [troubleshooting, setTroubleshooting] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [showAllTokens, setShowAllTokens] = useState(false);
   const [showAllChains, setShowAllChains] = useState(false);
@@ -142,6 +143,7 @@ const BybitDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+    setTroubleshooting(null);
     try {
       const response = await fetch('/api/bybit');
       const result = await response.json();
@@ -149,6 +151,9 @@ const BybitDashboard = () => {
       // Check if there's an error or message in the response
       if (result._error) {
         setError(result._error);
+        if (result._troubleshooting) {
+          setTroubleshooting(result._troubleshooting);
+        }
       } else if (result._message) {
         setError(result._message);
       }
@@ -198,7 +203,15 @@ const BybitDashboard = () => {
             {error.includes('not configured') ? 'Bybit Not Configured' : 'Error loading data'}
           </AlertTitle>
           <AlertDescription className="mt-2">
-            {error}
+            <p className="font-semibold">{error}</p>
+            
+            {troubleshooting && (
+              <div className="mt-4 p-3 bg-muted/50 rounded-md text-sm">
+                <p className="font-semibold mb-2">💡 How to fix:</p>
+                <p className="whitespace-pre-wrap">{troubleshooting}</p>
+              </div>
+            )}
+            
             {error.includes('not configured') && (
               <div className="mt-4 text-sm">
                 <p className="font-semibold mb-2">To configure Bybit integration:</p>
@@ -214,8 +227,47 @@ const BybitDashboard = () => {
                 </ol>
               </div>
             )}
+            
+            {error.includes('Forbidden') && (
+              <div className="mt-4 text-sm space-y-3">
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md">
+                  <p className="font-semibold mb-2 text-yellow-700 dark:text-yellow-400">🔒 IP Restriction Issue Detected</p>
+                  <p className="text-muted-foreground mb-2">Your API key works locally but is blocked on Vercel due to IP restrictions.</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <p className="font-semibold">Quick Fix Options:</p>
+                  <div className="space-y-2 ml-2">
+                    <div className="p-3 border rounded-md bg-card">
+                      <p className="font-semibold text-green-600 dark:text-green-400 mb-1">✅ Option 1: Create New API Key (Recommended)</p>
+                      <ol className="list-decimal ml-4 space-y-1 text-sm">
+                        <li>Go to <a href="https://www.bybit.com/app/user/api-management" target="_blank" rel="noopener noreferrer" className="underline text-blue-600 dark:text-blue-400">Bybit API Management</a></li>
+                        <li>Create a new API key</li>
+                        <li><strong>Don&apos;t add any IP restrictions</strong> (leave it unrestricted)</li>
+                        <li>Set permissions: Read-only for Account & Wallet</li>
+                        <li>Update your Vercel environment variables with the new key</li>
+                        <li>Redeploy</li>
+                      </ol>
+                    </div>
+                    
+                    <div className="p-3 border rounded-md bg-card">
+                      <p className="font-semibold text-blue-600 dark:text-blue-400 mb-1">🔧 Option 2: Edit Existing Key</p>
+                      <ol className="list-decimal ml-4 space-y-1 text-sm">
+                        <li>Go to <a href="https://www.bybit.com/app/user/api-management" target="_blank" rel="noopener noreferrer" className="underline text-blue-600 dark:text-blue-400">Bybit API Management</a></li>
+                        <li>Find and edit your existing API key</li>
+                        <li>Remove IP restrictions or set to unrestricted</li>
+                        <li>Save changes</li>
+                        <li>Redeploy your Vercel application</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {!error.includes('not configured') && (
               <Button onClick={fetchData} variant="outline" className="mt-4 w-full">
+                <RefreshCw className="h-4 w-4 mr-2" />
                 Retry
               </Button>
             )}

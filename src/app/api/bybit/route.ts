@@ -236,7 +236,25 @@ export async function GET() {
       message: error?.message,
       code: error?.code,
       body: error?.body,
+      retCode: error?.retCode,
+      retMsg: error?.retMsg,
     });
+
+    // Determine error type and provide helpful message
+    let errorMessage = error?.message || 'Failed to fetch Bybit data';
+    let troubleshootingTips = '';
+
+    // Check for common error patterns
+    if (errorMessage.toLowerCase().includes('forbidden') || error?.retCode === 10003 || error?.retCode === 33004) {
+      errorMessage = 'Forbidden - API Key Restrictions';
+      troubleshootingTips = 'Your Bybit API key has IP restrictions. To fix: 1) Go to Bybit API Management, 2) Edit your API key, 3) Either disable IP restrictions OR add Vercel\'s IP ranges (not recommended for security), 4) OR create a new API key without IP restrictions.';
+    } else if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('authentication')) {
+      errorMessage = 'Invalid API credentials';
+      troubleshootingTips = 'Check that BYBIT_API_KEY and BYBIT_API_SECRET are correctly set in Vercel environment variables.';
+    } else if (errorMessage.toLowerCase().includes('permission')) {
+      errorMessage = 'Insufficient API permissions';
+      troubleshootingTips = 'Your API key needs these permissions: Read-only for Account and Wallet.';
+    }
 
     // Return empty data structure on error instead of failing
     return NextResponse.json({
@@ -275,8 +293,14 @@ export async function GET() {
         totalUnrealisedPnl: 0,
         list: [],
       },
-      _error: error?.message || 'Failed to fetch Bybit data',
-      _errorDetails: process.env.NODE_ENV === 'development' ? error : undefined
+      _error: errorMessage,
+      _troubleshooting: troubleshootingTips,
+      _errorDetails: process.env.NODE_ENV === 'development' ? {
+        message: error?.message,
+        code: error?.code,
+        retCode: error?.retCode,
+        retMsg: error?.retMsg,
+      } : undefined
     });
   }
 }
