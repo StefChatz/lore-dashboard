@@ -570,7 +570,6 @@ const WalletDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
   );
 };
 
