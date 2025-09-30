@@ -144,8 +144,15 @@ const BybitDashboard = () => {
     setError(null);
     try {
       const response = await fetch('/api/bybit');
-      if (!response.ok) throw new Error('Failed to fetch Bybit data');
       const result = await response.json();
+      
+      // Check if there's an error or message in the response
+      if (result._error) {
+        setError(result._error);
+      } else if (result._message) {
+        setError(result._message);
+      }
+      
       setData(result);
     } catch (err: any) {
       setError(err.message);
@@ -183,16 +190,35 @@ const BybitDashboard = () => {
     );
   }
 
-  if (error) {
+  if (error && (!data || data.summary?.total_usd_value === 0)) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertTitle>Error loading data</AlertTitle>
+      <div className="space-y-4">
+        <Alert variant={error.includes('not configured') ? 'default' : 'destructive'}>
+          <AlertTitle>
+            {error.includes('not configured') ? 'Bybit Not Configured' : 'Error loading data'}
+          </AlertTitle>
           <AlertDescription className="mt-2">
             {error}
-            <Button onClick={fetchData} variant="outline" className="mt-4 w-full">
-              Retry
-            </Button>
+            {error.includes('not configured') && (
+              <div className="mt-4 text-sm">
+                <p className="font-semibold mb-2">To configure Bybit integration:</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Get API keys from <a href="https://www.bybit.com/app/user/api-management" target="_blank" rel="noopener noreferrer" className="underline">Bybit API Management</a></li>
+                  <li>Add to Vercel environment variables:
+                    <ul className="list-disc ml-4 mt-1">
+                      <li><code className="bg-muted px-1">BYBIT_API_KEY</code></li>
+                      <li><code className="bg-muted px-1">BYBIT_API_SECRET</code></li>
+                    </ul>
+                  </li>
+                  <li>Redeploy your application</li>
+                </ol>
+              </div>
+            )}
+            {!error.includes('not configured') && (
+              <Button onClick={fetchData} variant="outline" className="mt-4 w-full">
+                Retry
+              </Button>
+            )}
           </AlertDescription>
         </Alert>
       </div>

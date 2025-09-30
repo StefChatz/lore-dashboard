@@ -5,17 +5,53 @@ export async function GET() {
   const apiKey = process.env.BYBIT_API_KEY;
   const apiSecret = process.env.BYBIT_API_SECRET;
 
-  if (!apiKey || !apiSecret) {
-    return NextResponse.json(
-      { error: 'Missing Bybit API credentials' },
-      { status: 500 }
-    );
+  if (!apiKey || !apiSecret || apiKey === 'your_bybit_api_key_here' || apiSecret === 'your_bybit_api_secret_here') {
+    // Return empty data structure when credentials not configured
+    return NextResponse.json({
+      summary: {
+        total_usd_value: 0,
+        chain_count: 0,
+        token_count: 0,
+        protocol_count: 0,
+        position_count: 0,
+      },
+      tokens: [],
+      protocols: [],
+      chains: [],
+      history: [],
+      address: 'Bybit Account (Not Configured)',
+      accounts: {
+        unified: {
+          totalEquity: 0,
+          totalWalletBalance: 0,
+          totalAvailableBalance: 0,
+          totalInitialMargin: 0,
+          totalMaintenanceMargin: 0,
+          accountIMRate: '0',
+          accountMMRate: '0',
+          accountType: 'UNIFIED',
+          coins: [],
+        },
+        funding: {
+          totalValue: 0,
+          balances: [],
+          accountType: 'FUND',
+        }
+      },
+      positions: {
+        total: 0,
+        totalUnrealisedPnl: 0,
+        list: [],
+      },
+      _message: 'Bybit API credentials not configured. Add BYBIT_API_KEY and BYBIT_API_SECRET to environment variables.'
+    });
   }
 
   try {
     const client = new RestClientV5({
       key: apiKey,
       secret: apiSecret,
+      testnet: false,
     });
 
     // Fetch unified account wallet balance
@@ -196,10 +232,51 @@ export async function GET() {
     return NextResponse.json(transformedData);
   } catch (error: any) {
     console.error('Bybit API error:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      code: error?.code,
+      body: error?.body,
+    });
 
-    return NextResponse.json(
-      { error: error?.message || 'Failed to fetch Bybit data' },
-      { status: 500 }
-    );
+    // Return empty data structure on error instead of failing
+    return NextResponse.json({
+      summary: {
+        total_usd_value: 0,
+        chain_count: 0,
+        token_count: 0,
+        protocol_count: 0,
+        position_count: 0,
+      },
+      tokens: [],
+      protocols: [],
+      chains: [],
+      history: [],
+      address: 'Bybit Account (Error)',
+      accounts: {
+        unified: {
+          totalEquity: 0,
+          totalWalletBalance: 0,
+          totalAvailableBalance: 0,
+          totalInitialMargin: 0,
+          totalMaintenanceMargin: 0,
+          accountIMRate: '0',
+          accountMMRate: '0',
+          accountType: 'UNIFIED',
+          coins: [],
+        },
+        funding: {
+          totalValue: 0,
+          balances: [],
+          accountType: 'FUND',
+        }
+      },
+      positions: {
+        total: 0,
+        totalUnrealisedPnl: 0,
+        list: [],
+      },
+      _error: error?.message || 'Failed to fetch Bybit data',
+      _errorDetails: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 }
