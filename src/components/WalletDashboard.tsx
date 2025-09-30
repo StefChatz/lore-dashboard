@@ -43,6 +43,13 @@ interface WalletData {
     positions: Array<{
       name: string;
       net_value: number;
+      asset_value?: number;
+      debt_value?: number;
+      tokens?: Array<{
+        symbol: string;
+        amount: number;
+        value: number;
+      }>;
     }>;
   }>;
   chains: Array<{
@@ -410,13 +417,36 @@ const WalletDashboard = () => {
                         <div className="space-y-2">
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Positions</p>
                           {protocol.positions.map((position: any, pidx: number) => (
-                            <div key={pidx} className="space-y-1 p-2 rounded-md bg-muted/50">
-                              <div className="flex items-center justify-between">
-                                <Badge variant="outline" className="text-xs">
+                            <div key={pidx} className="space-y-2 p-3 rounded-md bg-muted/50 border">
+                              <div className="flex items-center justify-between mb-2">
+                                <Badge variant="outline" className="text-xs font-medium">
                                   {position.name}
                                 </Badge>
-                                <span className="text-sm font-semibold">${formatNumber(position.net_value)}</span>
+                                <div className="text-right">
+                                  <span className="text-sm font-semibold">${formatNumber(position.net_value)}</span>
+                                  {position.asset_value !== undefined && (
+                                    <div className="text-xs text-muted-foreground">
+                                      Assets: ${formatNumber(position.asset_value)}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                              {position.tokens && position.tokens.length > 0 && (
+                                <div className="space-y-1 pt-2 border-t">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">Tokens</p>
+                                  {position.tokens.map((token: any, tidx: number) => (
+                                    <div key={tidx} className="flex items-center justify-between text-xs">
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-medium">{token.symbol}</span>
+                                        <span className="text-muted-foreground">
+                                          {formatNumber(token.amount, 4)}
+                                        </span>
+                                      </div>
+                                      <span className="font-medium">${formatNumber(token.value)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -456,11 +486,36 @@ const WalletDashboard = () => {
                       <div className="space-y-2 pt-2 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Positions</p>
                         {protocol.positions.map((position: any, pidx: number) => (
-                          <div key={pidx} className="flex items-center justify-between p-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors">
-                            <Badge variant="secondary" className="text-xs font-normal">
-                              {position.name}
-                            </Badge>
-                            <span className="text-sm font-semibold">${formatNumber(position.net_value)}</span>
+                          <div key={pidx} className="space-y-2 p-3 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors border">
+                            <div className="flex items-center justify-between">
+                              <Badge variant="secondary" className="text-xs font-normal">
+                                {position.name}
+                              </Badge>
+                              <div className="text-right">
+                                <span className="text-sm font-semibold">${formatNumber(position.net_value)}</span>
+                                {position.debt_value > 0 && (
+                                  <div className="text-xs text-red-600">
+                                    Debt: ${formatNumber(position.debt_value)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {position.tokens && position.tokens.length > 0 && (
+                              <div className="space-y-1 pt-2 border-t border-muted">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Tokens in Position</p>
+                                {position.tokens.map((token: any, tidx: number) => (
+                                  <div key={tidx} className="flex items-center justify-between text-xs bg-background/50 p-1.5 rounded">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">{token.symbol}</span>
+                                      <span className="text-muted-foreground">
+                                        {formatNumber(token.amount, 4)}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium">${formatNumber(token.value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

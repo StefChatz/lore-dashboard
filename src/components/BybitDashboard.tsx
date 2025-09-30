@@ -63,6 +63,7 @@ interface BybitData {
     chain_count: number;
     token_count: number;
     protocol_count: number;
+    position_count: number;
   };
   tokens: Array<{
     symbol: string;
@@ -74,11 +75,30 @@ interface BybitData {
     logo: string;
     price_change_24h: number;
   }>;
-  protocols: Array<any>;
+  protocols: Array<{
+    name: string;
+    chain: string;
+    logo: string;
+    positions: Array<{
+      name: string;
+      net_value: number;
+      positionValue?: number;
+      size?: string;
+      avgPrice?: string;
+      markPrice?: string;
+      liqPrice?: string;
+      tokens?: Array<{
+        symbol: string;
+        amount: number;
+        value: number;
+      }>;
+    }>;
+  }>;
   chains: Array<{
     name: string;
     usd_value: number;
     logo_url: string;
+    account_type?: string;
   }>;
   history: Array<any>;
   address: string;
@@ -87,16 +107,23 @@ interface BybitData {
       totalEquity: number;
       totalWalletBalance: number;
       totalAvailableBalance: number;
+      totalInitialMargin?: number;
+      totalMaintenanceMargin?: number;
+      accountIMRate?: string;
+      accountMMRate?: string;
       accountType: string;
       coins: Array<any>;
     };
     funding: {
-      totalEquity: number;
-      totalWalletBalance: number;
-      totalAvailableBalance: number;
+      totalValue: number;
+      balances: Array<any>;
       accountType: string;
-      coins: Array<any>;
     };
+  };
+  positions?: {
+    total: number;
+    totalUnrealisedPnl: number;
+    list: Array<any>;
   };
 }
 
@@ -174,40 +201,14 @@ const BybitDashboard = () => {
 
   if (!data) return null;
 
-  const { summary, tokens, protocols, chains, address } = data!;
+  const { summary, tokens, protocols, chains, address, accounts, positions } = data!;
   const change24h = calculate24hChange();
 
-  // Calculate wallet balance per chain
-  const walletBalanceByChain = tokens.reduce((acc, token) => {
-    if (!acc[token.chain]) {
-      acc[token.chain] = 0;
-    }
-    acc[token.chain] += token.value;
-
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Calculate protocol balance per chain
-  const protocolBalanceByChain = protocols.reduce((acc, protocol) => {
-    if (!acc[protocol.chain]) {
-      acc[protocol.chain] = 0;
-    }
-    const totalValue = protocol.positions.reduce((sum: number, pos: any) => sum + pos.net_value, 0);
-    acc[protocol.chain] += totalValue;
-
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Combine chain data with wallet and protocol balances
-  const chainWithBalances = chains
-    .filter(chain => chain.usd_value > 0)
-    .sort((a, b) => b.usd_value - a.usd_value)
-    .map(chain => ({
-      ...chain,
-      walletBalance: walletBalanceByChain[chain.name] || 0,
-      protocolBalance: protocolBalanceByChain[chain.name] || 0,
-      percentage: ((chain.usd_value / summary.total_usd_value) * 100).toFixed(1)
-    }));
+  // Bybit-specific account data
+  const accountBreakdown = chains.map(chain => ({
+    ...chain,
+    percentage: ((chain.usd_value / summary.total_usd_value) * 100).toFixed(1)
+  }));
 
   // Get all tokens sorted by value
   const allTokensSorted = [...tokens]
@@ -264,26 +265,28 @@ const BybitDashboard = () => {
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard 
-            title="Total Value" 
+            title="Total Equity" 
             value={`$${summary.total_usd_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon={DollarSign}
-            change={change24h.toString()}
+            subtitle="Unified + Funding"
           />
           <StatCard 
-            title="Chains" 
-            value={summary.chain_count}
-            icon={Layers}
-            subtitle={`${chainWithBalances.length} active`}
-          />
-          <StatCard 
-            title="Tokens" 
-            value={summary.token_count}
+            title="Unified Account" 
+            value={`$${formatNumber(accounts.unified.totalEquity)}`}
             icon={Wallet}
+            subtitle={`Available: $${formatNumber(accounts.unified.totalAvailableBalance)}`}
           />
           <StatCard 
-            title="Protocols" 
-            value={summary.protocol_count}
+            title="Funding Account" 
+            value={`$${formatNumber(accounts.funding.totalValue)}`}
+            icon={Layers}
+            subtitle="Spot wallet"
+          />
+          <StatCard 
+            title="Open Positions" 
+            value={positions?.total || 0}
             icon={Activity}
+            subtitle={positions?.totalUnrealisedPnl ? `PnL: $${formatNumber(positions.totalUnrealisedPnl)}` : 'No positions'}
           />
         </div>
 
@@ -298,43 +301,61 @@ const BybitDashboard = () => {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
-            {/* Chain Balances - Horizontal Layout */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Balance per Chain</CardTitle>
-                <CardDescription>Asset distribution across networks</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4 overflow-x-auto pb-2">
-                  {chainWithBalances.slice(0, showAllChains ? chainWithBalances.length : 6).map((chain, idx) => (
-                    <div 
-                      key={idx} 
-                      className="flex items-center gap-3 min-w-fit px-4 py-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                    >
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={chain.logo_url} alt={chain.name} />
-                        <AvatarFallback>{chain.name.slice(0, 2)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium mb-0.5">{chain.name}</p>
-                        <p className="text-base font-bold">${formatNumber(chain.usd_value)}</p>
-                        <p className="text-xs text-muted-foreground">{chain.percentage}%</p>
+            {/* Account Breakdown */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Unified Account Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Unified Account</CardTitle>
+                  <CardDescription>Trading account with margin</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-muted-foreground">Total Equity</span>
+                      <span className="text-lg font-bold">${formatNumber(accounts.unified.totalEquity)}</span>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-muted-foreground">Wallet Balance</span>
+                      <span className="font-semibold">${formatNumber(accounts.unified.totalWalletBalance)}</span>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-muted-foreground">Available Balance</span>
+                      <span className="font-semibold text-green-600">${formatNumber(accounts.unified.totalAvailableBalance)}</span>
+                    </div>
+                  </div>
+                  {accounts.unified.totalInitialMargin !== undefined && (
+                    <div className="pt-3 border-t space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Initial Margin</span>
+                        <span>${formatNumber(accounts.unified.totalInitialMargin || 0)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Maintenance Margin</span>
+                        <span>${formatNumber(accounts.unified.totalMaintenanceMargin || 0)}</span>
                       </div>
                     </div>
-                  ))}
-                  {chainWithBalances.length > 6 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAllChains(!showAllChains)}
-                      className="min-w-fit text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      {showAllChains ? 'Show less' : `Unfold ${chainWithBalances.length - 6} chains`}
-                    </Button>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* Funding Account Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Funding Account</CardTitle>
+                  <CardDescription>Spot wallet for deposits/withdrawals</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm text-muted-foreground">Total Value</span>
+                    <span className="text-lg font-bold">${formatNumber(accounts.funding.totalValue)}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {accounts.funding.balances.length} coins with balance
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Top Token Balances */}
             <Card>
@@ -380,14 +401,15 @@ const BybitDashboard = () => {
             </Card>
 
             {/* Perpetual Positions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Perpetual Positions</CardTitle>
-                <CardDescription>Active trading positions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {allProtocols.map((protocol, idx) => (
+            {allProtocols.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Perpetual Positions</CardTitle>
+                  <CardDescription>Active trading positions ({positions?.total || 0} open)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {allProtocols.map((protocol, idx) => (
                     <div key={idx} className="flex items-start gap-3 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                       <Avatar className="h-12 w-12 flex-shrink-0">
                         <AvatarImage src={protocol.logo} alt={protocol.name} />
@@ -434,15 +456,41 @@ const BybitDashboard = () => {
                                   Liq: ${formatNumber(parseFloat(position.liqPrice))}
                                 </div>
                               )}
+                              {position.tokens && position.tokens.length > 0 && (
+                                <div className="space-y-1 pt-2 mt-2 border-t">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">Position Tokens</p>
+                                  {position.tokens.map((token: any, tidx: number) => (
+                                    <div key={tidx} className="flex items-center justify-between text-xs bg-background/30 p-1.5 rounded">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{token.symbol}</span>
+                                        <span className="text-muted-foreground">
+                                          {formatNumber(token.amount, 4)}
+                                        </span>
+                                      </div>
+                                      <span className="font-medium">${formatNumber(token.value)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {allProtocols.length === 0 && (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <Activity className="mx-auto h-12 w-12 mb-2 opacity-50" />
+                  <p>No open positions</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Protocols Tab */}
@@ -473,11 +521,38 @@ const BybitDashboard = () => {
                       <div className="space-y-2 pt-2 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Positions</p>
                         {protocol.positions.map((position: any, pidx: number) => (
-                          <div key={pidx} className="flex items-center justify-between p-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors">
-                            <Badge variant="secondary" className="text-xs font-normal">
-                              {position.name}
-                            </Badge>
-                            <span className="text-sm font-semibold">${formatNumber(position.net_value)}</span>
+                          <div key={pidx} className="space-y-2 p-3 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors border">
+                            <div className="flex items-center justify-between">
+                              <Badge variant="secondary" className="text-xs font-normal">
+                                {position.name}
+                              </Badge>
+                              <span className={`text-sm font-semibold ${position.net_value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {position.net_value >= 0 ? '+' : ''}${formatNumber(Math.abs(position.net_value))}
+                              </span>
+                            </div>
+                            {(position.avgPrice || position.markPrice || position.size) && (
+                              <div className="flex items-center justify-between text-xs text-muted-foreground gap-2 flex-wrap pt-1 border-t border-muted">
+                                {position.avgPrice && <span>Entry: ${formatNumber(parseFloat(position.avgPrice))}</span>}
+                                {position.markPrice && <span>Mark: ${formatNumber(parseFloat(position.markPrice))}</span>}
+                                {position.size && <span>Size: {position.size}</span>}
+                              </div>
+                            )}
+                            {position.tokens && position.tokens.length > 0 && (
+                              <div className="space-y-1 pt-2 border-t border-muted">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Position Tokens</p>
+                                {position.tokens.map((token: any, tidx: number) => (
+                                  <div key={tidx} className="flex items-center justify-between text-xs bg-background/50 p-1.5 rounded">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">{token.symbol}</span>
+                                      <span className="text-muted-foreground">
+                                        {formatNumber(token.amount, 4)}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium">${formatNumber(token.value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -558,7 +633,7 @@ const BybitDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {chainWithBalances.map((chain, idx) => (
+                    {accountBreakdown.map((chain: any, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell>
                           <div className="flex items-center gap-3">

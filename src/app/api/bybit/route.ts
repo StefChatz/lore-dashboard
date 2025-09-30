@@ -68,21 +68,29 @@ export async function GET() {
     const unifiedEquity = parseFloat(unifiedAccount?.totalEquity || '0');
     const totalValue = unifiedEquity + fundingTotalValue;
 
-    // Transform to match dashboard structure
+    // Transform to match dashboard structure with Bybit-specific data
     const transformedData = {
       summary: {
         total_usd_value: totalValue,
-        chain_count: 1, // Bybit is centralized
+        chain_count: 2, // Unified and Funding
         token_count: 0,
-        protocol_count: allPositions.length > 0 ? 1 : 0, // Show positions as a protocol
+        protocol_count: allPositions.length > 0 ? 1 : 0,
+        position_count: allPositions.length,
       },
       tokens: [] as any[],
       protocols: [] as any[],
       chains: [
         {
-          name: 'Bybit',
-          usd_value: totalValue,
+          name: 'Unified Account',
+          usd_value: unifiedEquity,
           logo_url: 'https://www.bybit.com/favicon.ico',
+          account_type: 'UNIFIED',
+        },
+        {
+          name: 'Funding Account',
+          usd_value: fundingTotalValue,
+          logo_url: 'https://www.bybit.com/favicon.ico',
+          account_type: 'FUND',
         }
       ],
       history: [],
@@ -92,6 +100,10 @@ export async function GET() {
           totalEquity: unifiedEquity,
           totalWalletBalance: parseFloat(unifiedAccount?.totalWalletBalance || '0'),
           totalAvailableBalance: parseFloat(unifiedAccount?.totalAvailableBalance || '0'),
+          totalInitialMargin: parseFloat(unifiedAccount?.totalInitialMargin || '0'),
+          totalMaintenanceMargin: parseFloat(unifiedAccount?.totalMaintenanceMargin || '0'),
+          accountIMRate: unifiedAccount?.accountIMRate || '0',
+          accountMMRate: unifiedAccount?.accountMMRate || '0',
           accountType: 'UNIFIED',
           coins: unifiedAccount?.coin || [],
         },
@@ -100,6 +112,11 @@ export async function GET() {
           balances: fundingBalances,
           accountType: 'FUND',
         }
+      },
+      positions: {
+        total: allPositions.length,
+        totalUnrealisedPnl: totalUnrealisedPnl,
+        list: allPositions,
       }
     };
 
